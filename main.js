@@ -1,234 +1,303 @@
 var App = (function(){
   var container, stats;
   var camera, controls, scene, renderer;
-	var mesh, texture;
-	var worldWidth = 264, worldDepth = 264, worldHalfWidth = worldWidth / 2, worldHalfDepth = worldDepth / 2;
-	var worldSize = worldWidth * worldDepth;
-	var movement = true;
-	var worldData = new Uint8Array(new ArrayBuffer(worldSize));
-	var clock = new THREE.Clock();
-	var intensity = 1.5;
-  var particleSystem, particleCount, particles, pMaterial;
+  var mesh, texture;
+  var worldWidth = 264, worldDepth = 264, worldHalfWidth = worldWidth / 2, worldHalfDepth = worldDepth / 2;
+  var worldSize = worldWidth * worldDepth;
+  var movement = true;
+  var worldData = new Uint8Array(new ArrayBuffer(worldSize));
+  var clock = new THREE.Clock();
+  var intensity = 2, terrain_intensity = 1.7;
+  var particleSystems = [];
   var anchor;
+  var sphere;
+  var raycaster, rays, threshold = 10;;
 
-	return {
+  return {
 
-		init : function() {
-			container = document.createElement( 'div' );
-			container.setAttribute("id", "canvas-container");
-			container.setAttribute("class", "canvas-container");
-			document.body.appendChild( container );
+    init : function() {
+      container = document.createElement( 'div' );
+      container.setAttribute("id", "canvas-container");
+      container.setAttribute("class", "canvas-container");
+      document.body.appendChild( container );
 
-			// Camera setup
-			camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 15000 );
-			camera.position.x = 3000;
-			camera.position.y = worldData[ worldHalfWidth + worldHalfDepth * worldWidth ] * 5;
+      // Camera setup
+      camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 15000 );
+      camera.position.x = 2500;
+      camera.position.y = worldData[ worldHalfWidth + worldHalfDepth * worldWidth ] * 5;
 
-			// Controls setup
-			controls = new THREE.OrbitControls( camera );
-			controls.rotateSpeed = 0.02;
-			controls.enableDamping = true;
-			controls.dampingFactor = 0.05;
-			controls.minPolarAngle = Math.PI / 3;
-			controls.maxPolarAngle = Math.PI / 3;
-			controls.enableZoom = false;
-			controls.autoRotate = true;
-			controls.autoRotateSpeed = -.1;
-			controls.enableKeys = false;
+      // Controls setup
+      controls = new THREE.OrbitControls( camera );
+      controls.rotateSpeed = 0.02;
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.minPolarAngle = Math.PI / 3;
+      controls.maxPolarAngle = Math.PI / 3;
+      controls.enableZoom = false;
+      // controls.autoRotate = true;
+      // controls.autoRotateSpeed = -.1;
+      controls.enableKeys = false;
 
-			// Scene setup
-			scene = new THREE.Scene();
+      // Scene setup
+      scene = new THREE.Scene();
+      scene.fog = new THREE.FogExp2( 0x1C1C1C, 0.0007 );
 
-			scene.fog = new THREE.FogExp2( 0x1C1C1C, 0.00038 );
+      // Noise setup
+      noise.seed(Math.random()), quality = 1, z = 0;
 
+      // Setting up particle system limits
+      this.updateAnchors();
+
+      // Particle system setup
+      for (var i=10; i<20; i++) {
+        this.generateParticles(i, 100, 50 + i);
+      }
+
+      // Terrain setup
+      this.generateHeights();
+
+      geometry = new THREE.PlaneBufferGeometry( 7500, 7500, worldWidth - 1, worldDepth - 1 );
+      geometry.rotateX( - Math.PI / 2 );
+      geometry.dynamic = true;
+
+      mesh = new THREE.Mesh( geometry, new THREE.MeshBasicMaterial({color:0x000000}));
+
+      mesh.position.y = 0;
+
+      this.updateMesh();
+
+      scene.add( mesh );
+
+      // Renderer setup
+      renderer = new THREE.WebGLRenderer();
+      renderer.setClearColor( 0x1C1C1C );
+      renderer.setPixelRatio( window.devicePixelRatio );
+      renderer.setSize( window.innerWidth, window.innerHeight );
+
+      container.innerHTML = "";
+      container.appendChild( renderer.domElement );
+
+      // Show stats if available
+      try{
+        stats = new Stats();
+        container.appendChild( stats.dom );
+      }catch(e){
+
+      }
+
+      // Scene fade in
+      container.style.opacity = 0;
+      new TWEEN.Tween(container.style).to({opacity: 1}, 2000 ).start();
+
+      // Disable controls on touch devices
+      if(this.util.isTouchDevice()) controls.enabled = false, movement = false;
+
+      // Start animation
+      this.animate();
+    },
+
+    updateAnchors: function() {
+      anchorX = window.innerWidth * 2;
+      anchorY = window.innerHeight * 3;
+    },
+
+    resize: function() {
+      camera.aspect = window.innerWidth / (window.innerHeight);
+      camera.updateProjectionMatrix();
+      renderer.setSize( window.innerWidth, window.innerHeight);
+      this.updateAnchors();
+    },
+
+    generateParticles: function(id, particleCount, size) {
       // create the particle variables
-      particleCount = 5000,
-      particles = new THREE.Geometry(),
-      pMaterial = new THREE.PointsMaterial({
+      var particles = new THREE.Geometry();
+      var pMaterial = new THREE.PointsMaterial({
         color: 0xCCCCCC,
-        size: 20,
+        size: window.innerWidth / size,
         map: new THREE.TextureLoader().load(
-          'images/snowflake.png'
+          'images/snowflake-' + id + '.png'
         ),
         blending: THREE.AdditiveBlending,
         transparent: true,
       });
 
-      anchor = window.innerWidth * 2;
-
       // create the individual particles
       for (var p = 0; p < particleCount; p++) {
 
         // create a particle
-        var pX = Math.random() * anchor - (anchor / 2),
-            pY = Math.random() * anchor - (anchor / 2),
-            pZ = Math.random() * anchor - (anchor / 2),
+        var pX = Math.random() * anchorX - (anchorX / 2),
+            pY = Math.random() * anchorX - (anchorX / 2),
+            pZ = Math.random() * anchorX - (anchorX / 2),
             particle = new THREE.Vector3(pX, pY, pZ);
 
         // create a velocity vector
-    		particle.velocity = new THREE.Vector3(
-    			0,				// x
-    			-Math.random(),	// y
-    			0);				// z
+        particle.velocity = new THREE.Vector3(
+          0,        // x
+          -Math.random(),  // y
+          0);        // z
 
         // add it to the geometry
         particles.vertices.push(particle);
       }
 
       // create the particle system
-      particleSystem = new THREE.Points(
+      var particleSystem = new THREE.Points(
           particles,
           pMaterial);
 
       particleSystem.sortParticles = true;
 
+      particleSystems.push({
+        particleSystem: particleSystem,
+        particleCount: particleCount,
+        particles: particles,
+        rotationFactor: 0.001,
+        gravityFactor: Math.random() * .01
+      });
+
       // add it to the scene
       scene.add(particleSystem);
+    },
 
-			// Renderer setup
-			renderer = new THREE.WebGLRenderer();
-			renderer.setClearColor( 0x1C1C1C );
-			renderer.setPixelRatio( window.devicePixelRatio );
-			renderer.setSize( window.innerWidth, window.innerHeight );
+    generateHeights: function() {
+      for ( var j = 0; j < 4; j ++ ) {
+        for ( var i = 0; i < worldSize; i ++ ) {
+          var x = i % worldWidth, y = ~~ ( i / worldWidth );
+          worldData[ i ] += Math.abs( noise.perlin3( x / quality, y / quality, z ) * quality * terrain_intensity );
+        }
 
-			container.innerHTML = "";
-			container.appendChild( renderer.domElement );
+        quality *= 5;
+      }
+    },
 
-			// Show stats if available
-			try{
-				stats = new Stats();
-				container.appendChild( stats.dom );
-			}catch(e){
+    updateHeights: function () {
+      quality = 1
+      z += .005;
 
-			}
+      for ( var i = 0; i < worldSize; i ++ ) {
+        worldData[ i ] = 0;
+      }
 
-			// Scene fade in
-			container.style.opacity = 0;
-			new TWEEN.Tween(container.style).to({opacity: 1}, 2000 ).start();
+      for ( var j = 0; j < 4; j ++ ) {
+        for ( var i = 0; i < worldSize; i ++ ) {
+          var x = i % worldWidth, y = ~~ ( i / worldWidth );
+          worldData[ i ] += Math.abs( noise.perlin3( x / quality, y / quality, z ) * quality * terrain_intensity);
+        }
+        quality *= 5.5;
+      }
+    },
 
-			// Disable controls on touch devices
-			if(this.util.isTouchDevice()) controls.enabled = false, movement = false;
+    updateMesh: function(){
+      var vertices = mesh.geometry.attributes.position.array;
+      for ( var i = 0, j = 0, l = vertices.length; i < l; i ++, j += 3 ) {
+        vertices[ j + 1 ] = worldData[ i ] * 10;
+      }
 
-			// Start animation
-			this.animate();
+      mesh.geometry.attributes.position.needsUpdate = true;
+    },
 
-		},
+    animate: function(){
+      TWEEN.update();
 
-		resize: function() {
+      for (var i=0; i<particleSystems.length; i++){
+        var pCount = particleSystems[i].particleCount;
+        var rotation = particleSystems[i].rotationFactor;
+        var gravity = particleSystems[i].gravityFactor;
 
-			camera.aspect = window.innerWidth / (window.innerHeight);
-			camera.updateProjectionMatrix();
-			renderer.setSize( window.innerWidth, window.innerHeight);
+        while(pCount--) {
+          // get the particle
+          var particle = particleSystems[i].particles.vertices[pCount];
 
-		},
+          // check if we need to reset
+          if(particle.y < 0) {
+            particle.y = anchorY;
+            particle.velocity.y = 0;
+          }
 
-		animate: function(){
-			TWEEN.update();
+          // update the velocity
+          particle.velocity.y -= gravity;
 
-      var pCount = particleCount;
-		  while(pCount--) {
-        // get the particle
-        var particle = particles.vertices[pCount];
+          // and to the position
+          particle.add(particle.velocity);
+        }
 
-        // check if we need to reset
-  			if(particle.y < -(window.innerHeight/4)) {
-  				particle.y = anchor;
-  				particle.velocity.y = 0;
-  			}
+        // flag to the particle system that their
+        // vertices where changed so it all updates.
+        particleSystems[i].particleSystem.geometry.verticesNeedUpdate = true;
+        particleSystems[i].particleSystem.rotation.y -= rotation;
+      }
 
-  			// update the velocity
-  			particle.velocity.y -= Math.random() * .1;
+      requestAnimationFrame(this.animate.bind(this));
 
-  			// and to the position
-  			particle.add(particle.velocity);
-  		}
+      controls.update();
+      renderer.render( scene, camera );
 
-  		// flag to the particle system that their
-      // vertices where changed so it all updates.
-  		particleSystem.geometry.verticesNeedUpdate = true;
+      if(stats) stats.update();
+    },
 
-			requestAnimationFrame(this.animate.bind(this));
+    pause: function(){
+      controls.autoRotate = false;
+      movement = false;
+    },
 
-			controls.update();
-			renderer.render( scene, camera );
+    restart: function(){
+      controls.autoRotate = true;
+      if(!this.util.isTouchDevice()) movement = true;
+    },
 
-			if(stats) stats.update();
+    toggleMovement: function() {
+      movement = (movement) ? false : true;
+    },
 
-		},
+    up: function() {
+      intensity = (intensity <= 2) ? 2 : (intensity - .05);
+    },
 
-		pause: function(){
+    down: function() {
+      intensity = (intensity >= 7) ? 7 : (intensity + .05);
+    },
 
-			controls.autoRotate = false;
-			movement = false;
-
-		},
-
-		restart: function(){
-
-			controls.autoRotate = true;
-			if(!this.util.isTouchDevice()) movement = true;
-
-		},
-
-		toggleMovement: function() {
-			movement = (movement) ? false : true;
-		},
-
-		up: function() {
-			intensity = (intensity >= 1.7) ? 1.7 : (intensity + .01);
-		},
-
-		down: function() {
-			intensity = (intensity <= 0.4) ? 0.4 : (intensity - .01);
-		},
-
-		util : {
-			isTouchDevice: function() {
-
-				return 'ontouchstart' in window        // works on most browsers
-				|| navigator.maxTouchPoints;       // works on IE10/11 and Surface
-
-			}
-		}
-	};
+    util : {
+      isTouchDevice: function() {
+        return 'ontouchstart' in window        // works on most browsers
+        || navigator.maxTouchPoints;       // works on IE10/11 and Surface
+      }
+    }
+  };
 })();
 
 // Window events setup
 window.addEventListener( 'DOMContentLoaded', function(){
-	App.init();
+  App.init();
 }, false );
 
 window.addEventListener( 'resize', function(){
-	App.resize();
+  App.resize();
 }, false );
 
 window.addEventListener( 'scroll', function(){
-
-	if(document.body.scrollTop > window.innerHeight) {
-		App.pause();
-	}else{
-		App.restart();
-	}
-
+  if(document.body.scrollTop > window.innerHeight) {
+    App.pause();
+  }else{
+    App.restart();
+  }
 }, false );
 
 window.addEventListener( 'keydown' , function(e){
-
-	e = e || window.event;
+  e = e || window.event;
 
     if (e.keyCode == '38') {
         // up arrow
          App.up();
     }
     else if (e.keyCode == '40') {
-    	// down arrow
+      // down arrow
         App.down();
     }
     else if (e.keyCode == '37') {
-    	// left arrow
+      // left arrow
     }
     else if (e.keyCode == '39') {
        // right arrow
     }
-
 }, false );
