@@ -75,7 +75,7 @@ var App = (function(){
       scene.add( mesh );
 
       // Renderer setup
-      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer = new THREE.WebGLRenderer();
       renderer.setClearColor( 0x1C1C1C );
       renderer.setPixelRatio( window.devicePixelRatio );
       renderer.setSize( window.innerWidth, window.innerHeight );
