@@ -11,7 +11,8 @@ var App = (function(){
   var particleSystems = [];
   var anchor;
   var sphere;
-  var raycaster, rays, threshold = 10;;
+  var raycaster, rays, threshold = 10;
+  var pointLight;
 
   return {
 
@@ -22,7 +23,7 @@ var App = (function(){
       document.body.appendChild( container );
 
       // Camera setup
-      camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 15000 );
+      camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 18000 );
       camera.position.x = 2500;
       camera.position.y = worldData[ worldHalfWidth + worldHalfDepth * worldWidth ] * 5;
 
@@ -31,8 +32,8 @@ var App = (function(){
       controls.rotateSpeed = 0.02;
       controls.enableDamping = true;
       controls.dampingFactor = 0.05;
-      controls.minPolarAngle = Math.PI / 3;
-      controls.maxPolarAngle = Math.PI / 3;
+      controls.minPolarAngle = Math.PI / 3.3;
+      controls.maxPolarAngle = Math.PI / 3.3;
       controls.enableZoom = false;
       // controls.autoRotate = true;
       // controls.autoRotateSpeed = -.1;
@@ -40,7 +41,12 @@ var App = (function(){
 
       // Scene setup
       scene = new THREE.Scene();
-      scene.fog = new THREE.FogExp2( 0x1C1C1C, 0.0007 );
+
+      // Terrain fog effect
+      pointLight = new THREE.PointLight( 0xffffff, 2 );
+			scene.add( pointLight );
+			pointLight.position.y = 700;
+
 
       // Noise setup
       noise.seed(Math.random()), quality = 1, z = 0;
@@ -58,9 +64,9 @@ var App = (function(){
 
       geometry = new THREE.PlaneBufferGeometry( 7500, 7500, worldWidth - 1, worldDepth - 1 );
       geometry.rotateX( - Math.PI / 2 );
-      geometry.dynamic = true;
+      //geometry.dynamic = true;
 
-      mesh = new THREE.Mesh( geometry, new THREE.MeshBasicMaterial({color:0x000000}));
+      mesh = new THREE.Mesh( geometry, new THREE.MeshLambertMaterial({color:0x1C1C1C}));
 
       mesh.position.y = 0;
 
@@ -69,7 +75,7 @@ var App = (function(){
       scene.add( mesh );
 
       // Renderer setup
-      renderer = new THREE.WebGLRenderer();
+      renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setClearColor( 0x1C1C1C );
       renderer.setPixelRatio( window.devicePixelRatio );
       renderer.setSize( window.innerWidth, window.innerHeight );
@@ -226,6 +232,11 @@ var App = (function(){
         particleSystems[i].particleSystem.geometry.verticesNeedUpdate = true;
         particleSystems[i].particleSystem.rotation.y -= rotation;
       }
+
+      var timer = 0.0001 * Date.now();
+
+      pointLight.position.x = Math.sin( timer * 3.5 ) * 300;
+			pointLight.position.z = Math.cos( timer * 1.5 ) * 300;
 
       requestAnimationFrame(this.animate.bind(this));
 
