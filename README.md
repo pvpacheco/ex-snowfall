@@ -1,4 +1,4 @@
-# Snowflake
+# Snowfall
 Procedural terrain and particle system WebGL experiment using [three.js](https://threejs.org/).
 
 ## Preview
