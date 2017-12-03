@@ -34,6 +34,8 @@ var App = (function(){
       controls.dampingFactor = 0.05;
       controls.minPolarAngle = Math.PI / 3.3;
       controls.maxPolarAngle = Math.PI / 3.3;
+      // controls.minAzimuthAngle = 0;
+      // controls.maxAzimuthAngle = 0;
       controls.enableZoom = false;
       // controls.autoRotate = true;
       // controls.autoRotateSpeed = -.1;
@@ -41,6 +43,7 @@ var App = (function(){
 
       // Scene setup
       scene = new THREE.Scene();
+      //scene.fog = new THREE.FogExp2(0x1C1C1C, 0.000015);
 
       // Terrain fog effect
       pointLight = new THREE.PointLight( 0xffffff, 2 );
@@ -56,7 +59,7 @@ var App = (function(){
 
       // Particle system setup
       for (var i=10; i<20; i++) {
-        this.generateParticles(i, 100, 50 + i);
+        this.generateParticles(i, 100, window.innerWidth / (50 + i));
       }
 
       // Terrain setup
@@ -115,11 +118,13 @@ var App = (function(){
     },
 
     generateParticles: function(id, particleCount, size) {
+      size = (size < 10) ? 10 : size;
+
       // create the particle variables
       var particles = new THREE.Geometry();
       var pMaterial = new THREE.PointsMaterial({
-        color: 0xCCCCCC,
-        size: window.innerWidth / size,
+        color: 0x999999,
+        size: size,
         map: new THREE.TextureLoader().load(
           'images/snowflake-' + id + '.png'
         ),
@@ -132,7 +137,7 @@ var App = (function(){
 
         // create a particle
         var pX = Math.random() * anchorX - (anchorX / 2),
-            pY = Math.random() * anchorX - (anchorX / 2),
+            pY = Math.random() * anchorY - (anchorY / 2),
             pZ = Math.random() * anchorX - (anchorX / 2),
             particle = new THREE.Vector3(pX, pY, pZ);
 
