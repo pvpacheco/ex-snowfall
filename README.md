@@ -2,7 +2,7 @@
 Procedural terrain and particle system WebGL experiment using [three.js](https://threejs.org/).
 
 ## Preview
-http://pacheco.work/www/ex-snowfall/
+http://pacheco.work/www/ex-snowfall/ (click and drag to rotate)
 
 ## Screenshots
 ![Alt text](screenshot.png?raw=true)
